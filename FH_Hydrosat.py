@@ -69,7 +69,8 @@ class FH_Hydrosat(object):
             
         ds = xr.concat([rxr.open_rasterio(f) for f in self.item_href], dim='time')
          
-        datetimes2 = pd.to_datetime(self.datetime, format='%Y-%m-%dT%H:%M:%S.%fZ', utc=True)
+        #datetimes2 = pd.to_datetime(self.datetime, format='%Y-%m-%dT%H:%M:%S.%fZ', utc=True)
+        datetimes2 = pd.to_datetime(self.datetime, infer_datetime_format=True, utc=True) # more general construction
         datetimes2 = [d.to_pydatetime() for d in datetimes2]
 
         ds2 = ds.assign_coords(time=('time', datetimes2))
