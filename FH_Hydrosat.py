@@ -91,6 +91,9 @@ class FH_StackedDataset(object):
         if save_ani:
             ani.save(anipath)
         
+        # close the figure
+        plt.close()
+        
         return ani
         
     
@@ -145,6 +148,9 @@ class FH_Hydrosat(object):
         if len(idx_list) == 1:
             download_single_asset(idx_list[0], local_folder)
             
+        if (local_folder is not None) and (not os.path.exists(local_folder)):
+            os.makedirs(local_folder)
+            
         else:
             # TODO 
             # call multiprocess with functools.partial
@@ -183,10 +189,10 @@ class FH_Hydrosat(object):
         return valid_ds
         
     
-    def stack(self, chunks=2048):
+    def stack(self, chunks=2048, cache=False):
         ''' this function stacks the data files and adds a time dimension '''
             
-        ds = xr.concat([rxr.open_rasterio(f) for f in self.item_href], dim='time')
+        ds = xr.concat([rxr.open_rasterio(f, cache=cache, chunks=chunks) for f in self.item_href], dim='time')
          
         #datetimes2 = pd.to_datetime(self.datetime, format='%Y-%m-%dT%H:%M:%S.%fZ', utc=True)
         datetimes2 = pd.to_datetime(self.datetime, infer_datetime_format=True, utc=True) #more general conversion
