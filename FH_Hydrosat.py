@@ -131,7 +131,7 @@ class FH_Hydrosat(object):
             
         # download file if it doesn't exist
         if not os.path.exists(outfile):
-            return urllib.request.urlretrieve(dl_asset, outfile)
+            return urllib.request.urlretrieve(dl_asset, outfile + '.tif')
         else:
             return
         
