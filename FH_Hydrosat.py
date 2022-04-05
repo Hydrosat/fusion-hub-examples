@@ -125,13 +125,13 @@ class FH_Hydrosat(object):
         dl_url = self.item_desc[idx]
         
         if local_folder is not None:
-            outfile = os.path.join(local_folder, os.path.basename(dl_url))
+            outfile = os.path.join(local_folder, os.path.basename(dl_url) + '.tif')
         else:
-            outfile = os.path.basename(dl_url)
+            outfile = os.path.basename(dl_url) + '.tif'
             
         # download file if it doesn't exist
         if not os.path.exists(outfile):
-            return urllib.request.urlretrieve(dl_asset, outfile + '.tif')
+            return urllib.request.urlretrieve(dl_asset, outfile)
         else:
             return
         
@@ -146,7 +146,7 @@ class FH_Hydrosat(object):
             raise TypeError('idx_list should be list of indexes. If only a single value, use a list or call download_single_asset().')
             
         if len(idx_list) == 1:
-            download_single_asset(idx_list[0], local_folder)
+            self.download_single_asset(idx_list[0], local_folder)
             
         if (local_folder is not None) and (not os.path.exists(local_folder)):
             os.makedirs(local_folder)
