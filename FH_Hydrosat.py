@@ -208,4 +208,24 @@ class FH_Hydrosat(object):
         
         return FH_StackedDataset(ds2.chunk({'x':chunks, 'y':chunks})) # return the class above, which has some added functionality
         
+    def stack2(self, chunks=2048, cache=False):
+        ''' this function stacks the data files and adds a time dimension. Updated to ensure matching x-y dims. '''
+        
+        base_ds = rxr.open_rasterio(self.item_href[0], cache=cache, chunks=chunks)
+        restof_ds = [rxr.open_rasterio(f, cache=cache, chunks=chunks).rio.reproject_match(base_ds) for f in self.item_href[1:]]
+        ds = xr.concat([base_ds] + restof_ds, dim='time')
+         
+        #datetimes2 = pd.to_datetime(self.datetime, format='%Y-%m-%dT%H:%M:%S.%fZ', utc=True)
+        datetimes2 = pd.to_datetime(self.datetime, infer_datetime_format=True, utc=True) #more general conversion
+        datetimes2 = [d.to_pydatetime() for d in datetimes2]
+
+        ds2 = ds.assign_coords(time=('time', datetimes2))
+        
+        # assign crs
+        with rio.open(self.item_href[0]) as src:
+            raster_crs = src.profile['crs']
+        
+        ds2.rio.write_crs(raster_crs)
+        
+        return FH_StackedDataset(ds2.chunk({'x':chunks, 'y':chunks})) # return the class above, which has some added functionality
         
