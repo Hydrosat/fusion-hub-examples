@@ -18,6 +18,7 @@ import os
 import urllib
 from functools import partial
 import numpy as np
+import geopandas as gpd
 
 from matplotlib import pyplot as plt, animation
 
@@ -229,3 +230,64 @@ class FH_Hydrosat(object):
         
         return FH_StackedDataset(ds2.chunk({'x':chunks, 'y':chunks})) # return the class above, which has some added functionality
         
+    # TODO
+    def _extract_point_val(self, href, set_x=None, set_y=None, tol=20):
+        """ construct a pandas DataFrame which is a time series for a single pixel across the search result.
+            pt: shapely.geometry.Point
+            tol: float. specified to retrieve nearest pixel
+        """
+        
+        try:
+            # open the raster dataset to sample
+            ds = rxr.open_rasterio(href, chunks=2048, cache=False)
+            val = ds.isel(band=0).sel(x=set_x, y=set_y, method='nearest', tolerance=tol).values
+        except Exception as e:
+            val = np.nan
+        
+        return val
+            
+            
+    # TODO
+    def _extract_area_val(self, poly, calc='mean'):
+        """ construct a pandas DataFrame which is a time series for a single pixel across the search result."""
+        
+        # check pt param type
+        if type(pt) is not Polygon:
+            raise(TypeError, "input pt must be of type shapely.geometry.Polygon")
+    
+    
+    # TODO
+    def point_time_series_from_items(self, pt, tol=20, nproc=2):
+        """ construct a pandas DataFrame which is a time series for a single pixel across the search result."""
+        
+        # check pt param type
+        if type(pt) is not Point:
+            raise(TypeError, "input pt must be of type shapely.geometry.Point")
+            
+        point_df = gpd.GeoDataFrame({'geometry':[pt]}, crs=CRS.from_epsg(4326))
+        
+        # project the point to raster CRS
+        ds = rxr.open_rasterio(self.item_href[0])
+        raster_crs = CRS.from_wkt(ds.spatial_ref.crs_wkt)
+        point_df_utm = point_df.to_crs(raster_crs)
+        set_x, set_y = point_df_utm['geometry'][0].x, point_df_utm['geometry'][0].y
+        
+        # return a time series using multiprocessing and helper function
+        # call multiprocess with functools.partial
+        sample_func = partial(self._extract_point_val, set_x=set_x, set_y=set_y, tol=tol)
+
+        with mp.get_context("spawn").Pool(nproc) as pool:
+            print(f'using {nproc} processes to sample {len(self.item_href)} assets')
+            vals = pool.map(sample_func, self.item_href)
+            
+        return list(vals)
+
+            
+            
+    # TODO
+    def area_time_series_from_items(self, poly):
+        """ construct a pandas DataFrame which is a time series for a single pixel across the search result."""
+        
+        # check pt param type
+        if type(pt) is not Polygon:
+            raise(TypeError, "input pt must be of type shapely.geometry.Polygon")
