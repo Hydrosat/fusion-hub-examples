@@ -19,6 +19,7 @@ import urllib
 from functools import partial
 import numpy as np
 import geopandas as gpd
+import datetime
 
 from matplotlib import pyplot as plt, animation
 
@@ -29,6 +30,58 @@ from IPython.display import HTML, display
 from multiprocessing import set_start_method
 set_start_method("spawn", force=True)
 
+
+# classless function to generate lst_mask values from a set of STAC items
+def get_point_lst_mask_vals(item_hr, item_cr_t0, item_cr_tn, pt, tol=1500):
+    ''' this function samples the lst_mask assets for a point location
+    
+    item_hr: STAC item for high res observation
+    item_cr_t0: STAC item for coarse res observation at t0
+    item_cr_tn: STAC item for coarse res observation at t1
+    '''
+    # check pt param type
+    if type(pt) is not Point:
+        raise(TypeError, "input pt must be of type shapely.geometry.Point")
+
+    point_df = gpd.GeoDataFrame({'geometry':[pt]}, crs=CRS.from_epsg(4326))
+
+    # project the point to raster CRS
+    ds = rxr.open_rasterio(item_hr.to_dict()['assets']['lst']['href'])
+    raster_crs = CRS.from_wkt(ds.spatial_ref.crs_wkt)
+    point_df_utm = point_df.to_crs(raster_crs)
+    set_x, set_y = point_df_utm['geometry'][0].x, point_df_utm['geometry'][0].y
+    
+    vals = []
+    for _i, i in enumerate((item_hr, item_cr_t0, item_cr_tn)):
+        ds = rxr.open_rasterio(i.to_dict()['assets']['lst_mask']['href'])
+        
+        # swap qa band values
+        ds = xr.where(ds == 1, 0, 1)
+        
+        if _i == 1:
+            ds = xr.where(ds == 1, 2, ds)
+        if _i == 2:
+            ds = xr.where(ds == 1, 4, ds)
+        
+        val = ds.isel(band=0).sel(x=set_x, y=set_y, method='nearest', tolerance=tol).values
+        vals.append(val)
+    
+    return np.array(vals)
+                               
+    
+def get_rel_items_for_pred(item_hr, prepped_hr_items, prepped_cr_items):
+    
+    pred_doy = item_hr.to_dict()['id'].split('_')[2]
+    pred_str = datetime.datetime.strptime(pred_doy, '%Y%j').strftime('%Y-%m-%d')
+    from_doy = item_hr.to_dict()['id'].split('_')[4]
+    from_str = datetime.datetime.strptime(from_doy, '%Y%j').strftime('%Y%m%d')
+
+    high_res_item = [i for i in prepped_hr_items if from_str in i.to_dict()['id']][0]
+    coarse_res_item_t0 = [i for i in prepped_cr_items if from_doy in i.to_dict()['assets']['lst']['href']][0]
+    coarse_res_item_tn = [i for i in prepped_cr_items if pred_doy in i.to_dict()['assets']['lst']['href']][0]
+
+
+    return (high_res_item, coarse_res_item_t0, coarse_res_item_tn, pred_str)
 
 class FH_StackedDataset(object):
     
@@ -230,7 +283,6 @@ class FH_Hydrosat(object):
         
         return FH_StackedDataset(ds2.chunk({'x':chunks, 'y':chunks})) # return the class above, which has some added functionality
         
-    # TODO
     def _extract_point_val(self, href, set_x=None, set_y=None, tol=20):
         """ construct a pandas DataFrame which is a time series for a single pixel across the search result.
             pt: shapely.geometry.Point
@@ -256,7 +308,6 @@ class FH_Hydrosat(object):
             raise(TypeError, "input pt must be of type shapely.geometry.Polygon")
     
     
-    # TODO
     def point_time_series_from_items(self, pt, tol=20, nproc=2):
         """ construct a pandas DataFrame which is a time series for a single pixel across the search result."""
         
@@ -291,3 +342,9 @@ class FH_Hydrosat(object):
         # check pt param type
         if type(pt) is not Polygon:
             raise(TypeError, "input pt must be of type shapely.geometry.Polygon")
+            
+            
+
+                               
+                               
+    
