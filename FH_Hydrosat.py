@@ -154,10 +154,10 @@ class FH_StackedDataset(object):
     
 class FH_Hydrosat(object):
     
-    def __init__(self, items, geometry=None, crs=None):
+    def __init__(self, items, geometry=None, crs=None, asset='lst'):
         
         self.items = items
-        self.item_href = [i.to_dict()['assets']['lst']['href'] for i in items]
+        self.item_href = [i.to_dict()['assets'][asset]['href'] for i in items]
         self.item_desc = [i.to_dict()['links'][0]['href'] for i in items]
         self.datetime = [i.to_dict()['properties']['datetime'] for i in items]
         self.geometry = geometry
