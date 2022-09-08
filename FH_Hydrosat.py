@@ -158,7 +158,8 @@ class FH_Hydrosat(object):
         
         self.items = items
         self.item_href = [i.to_dict()['assets'][asset]['href'] for i in items]
-        self.item_desc = [i.to_dict()['links'][0]['href'] for i in items]
+        #self.item_desc = [i.to_dict()['links'][0]['href'] for i in items]
+        self.item_desc = [os.path.basename(href.split('?'))[0] for href in self.item_href
         self.datetime = [i.to_dict()['properties']['datetime'] for i in items]
         self.geometry = geometry
         self.crs = crs
@@ -179,9 +180,9 @@ class FH_Hydrosat(object):
         dl_url = self.item_desc[idx]
         
         if local_folder is not None:
-            outfile = os.path.join(local_folder, os.path.basename(dl_url) + '.tif')
+            outfile = os.path.join(local_folder, os.path.basename(dl_url)) #+ '.tif')
         else:
-            outfile = os.path.basename(dl_url) + '.tif'
+            outfile = os.path.basename(dl_url) #+ '.tif'
             
         # download file if it doesn't exist
         if not os.path.exists(outfile):
