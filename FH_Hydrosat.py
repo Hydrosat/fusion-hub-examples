@@ -159,7 +159,7 @@ class FH_Hydrosat(object):
         self.items = items
         self.item_href = [i.to_dict()['assets'][asset]['href'] for i in items]
         #self.item_desc = [i.to_dict()['links'][0]['href'] for i in items]
-        self.item_desc = [os.path.basename(href.split('?'))[0] for href in self.item_href
+        self.item_desc = [os.path.basename(href.split('?')[0]) for href in self.item_href]
         self.datetime = [i.to_dict()['properties']['datetime'] for i in items]
         self.geometry = geometry
         self.crs = crs
