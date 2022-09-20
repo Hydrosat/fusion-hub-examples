@@ -179,10 +179,19 @@ class FH_Hydrosat(object):
         dl_asset = self.item_href[idx]
         dl_url = self.item_desc[idx]
         
+        # illegal character set
+        sets = [':','*','?','"','<','>','|']
+        
         if local_folder is not None:
             outfile = os.path.join(local_folder, os.path.basename(dl_url)) #+ '.tif')
+            for char in outfile:
+                if char in sets:
+                    outfile = outfile.replace(char,'_')
         else:
             outfile = os.path.basename(dl_url) #+ '.tif'
+            for char in outfile:
+                if char in sets:
+                    outfile = outfile.replace(char,'_')
             
         # download file if it doesn't exist
         if not os.path.exists(outfile):
