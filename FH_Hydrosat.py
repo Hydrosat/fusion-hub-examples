@@ -30,6 +30,43 @@ from IPython.display import HTML, display
 from multiprocessing import set_start_method
 set_start_method("spawn", force=True)
 
+#classless function to unpack combined_qa asset from v19+
+# write a value dictionary for the combinations of qa
+qa_dict = {
+    'Prepared High-Resolution t0': {'position': 0, 'value': 1},
+    'Prepared High-Resolution t1': {'position': 1, 'value': 1},
+    'Prepared Low-Resolution t0': {'position': 2, 'value': 1},
+    'Prepared Low-Resolution t1': {'position': 3, 'value': 1},
+    'Sharpened High-Resolution t0': {'position': 4, 'value': 1},
+    'Sharpened High-Resolution t1': {'position': 5, 'value': 1},
+    'Sharpened Low-Resolution t0': {'position': 6, 'value': 1},
+    'Sharpened Low-Resolution t1': {'position': 7, 'value': 1},
+    'Fused t1': {'position': 8, 'value': 1}
+}
+
+def unpack_qa_value(qa_val=0):
+
+    bit_desc_full = []
+    # if it is valued 0, it is a clear pixel
+    if qa_val == 0:
+        bit_desc_full.append('valid pixel in all inputs')
+        
+    else:        
+        # get the bit string for the current qa value
+        bit_str = format(int(qa_val), '#010b')
+        bit_vals = bit_str.split('b')[1]
+
+        bit_desc = []
+        for pos,b in enumerate(bit_vals[::-1]):
+
+            if b=='1':
+                for k,v in qa_dict.items():
+                    if v['position'] == pos:
+                        bit_desc.append(k)
+                        
+        bit_desc_full = bit_desc
+    
+    return bit_desc_full
 
 # classless function to generate lst_mask values from a set of STAC items
 def get_point_lst_mask_vals(item_hr, item_cr_t0, item_cr_tn, pt, tol=1500):
