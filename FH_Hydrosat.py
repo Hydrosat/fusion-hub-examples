@@ -20,6 +20,7 @@ from functools import partial
 import numpy as np
 import geopandas as gpd
 import datetime
+from odc import stac
 
 from matplotlib import pyplot as plt, animation
 
@@ -195,9 +196,8 @@ class FH_Hydrosat(object):
         
         self.items = items
         self.item_href = [i.to_dict()['assets'][asset]['href'] for i in items]
-        #self.item_desc = [i.to_dict()['links'][0]['href'] for i in items]
         self.item_desc = [os.path.basename(href.split('?')[0]) for href in self.item_href]
-        self.datetime = [i.to_dict()['properties']['datetime'] for i in items]
+        self.datetime = [i.datetime for i in items]
         self.geometry = geometry
         self.crs = crs
         
@@ -291,7 +291,8 @@ class FH_Hydrosat(object):
         
     
     def stack(self, chunks=2048, cache=False):
-        ''' this function stacks the data files and adds a time dimension '''
+        ''' this function stacks the data files and adds a time dimension 
+        updated to use odc stac!'''
             
         ds = xr.concat([rxr.open_rasterio(f, cache=cache, chunks=chunks) for f in self.item_href], dim='time')
          
@@ -308,6 +309,7 @@ class FH_Hydrosat(object):
         ds2.rio.write_crs(raster_crs)
         
         return FH_StackedDataset(ds2.chunk({'x':chunks, 'y':chunks})) # return the class above, which has some added functionality
+    
         
     def stack2(self, chunks=2048, cache=False):
         ''' this function stacks the data files and adds a time dimension. Updated to ensure matching x-y dims. '''
@@ -329,6 +331,13 @@ class FH_Hydrosat(object):
         ds2.rio.write_crs(raster_crs)
         
         return FH_StackedDataset(ds2.chunk({'x':chunks, 'y':chunks})) # return the class above, which has some added functionality
+    
+    
+    def stack_odc(self, bands=['lst', 'combined_qa'], cache=False):
+        ''' warning, this is currently much slower than either of stack or stack2'''
+        
+        return stac.load(self.items, bands=bands, cache=cache)
+    
         
     def _extract_point_val(self, href, set_x=None, set_y=None, tol=20):
         """ construct a pandas DataFrame which is a time series for a single pixel across the search result.
@@ -367,12 +376,33 @@ class FH_Hydrosat(object):
         return val
     
     # TODO
-    def _extract_area_val(self, poly, calc='mean'):
-        """ construct a pandas DataFrame which is a time series for a single pixel across the search result."""
+    def _extract_area_val(self, href, poly_df, stat='mean', clip_dict={'all_touched':True, 'crop':True}):
+        """ construct a pandas DataFrame which is a time series for pixels in the geometry across the search result."""
+        try:
+            # open the raster dataset to sample
+            ds = rxr.open_rasterio(href, chunks=2048, cache=False)
+            clipped_ds = ds.rio.clip(poly_df.geometry, *clip_dict)
+            
+            if stat=='mean':
+                val = np.nanmean(clipped_ds.values)
+            elif stat=='max':
+                val = np.nanmax(clipped_ds.values)
+            elif stat=='min':
+                val = np.nanmin(clipped_ds.values)
+            elif stat=='std':
+                val = np.nanstd(clipped_ds.values)
+            elif stat=='var':
+                val = np.nanvar(clipped_ds.values)
+            elif stat=='median':
+                val = np.nanmedian(clipped_ds.values)
+            else:
+                val = np.nan
+
+        except Exception as e:
+            val = np.nan
+
+        return val
         
-        # check pt param type
-        if type(pt) is not Polygon:
-            raise(TypeError, "input pt must be of type shapely.geometry.Polygon")
     
     
     def point_time_series_from_items(self, pt, tol=20, nproc=2, pad=None):
@@ -404,17 +434,34 @@ class FH_Hydrosat(object):
             vals = pool.map(sample_func, self.item_href)
             
         return list(vals)
-
             
             
     # TODO
-    def area_time_series_from_items(self, poly):
+    def area_time_series_from_items(self, poly, nproc=2, stat='mean', clip_dict={'all_touched':True, 'crop':True}):
         """ construct a pandas DataFrame which is a time series for a single pixel across the search result."""
         
         # check pt param type
         if type(pt) is not Polygon:
             raise(TypeError, "input pt must be of type shapely.geometry.Polygon")
             
+        valid_stats = ('mean', 'std', 'var', 'median', 'min', 'max')
+        if stat not in valid_stats:
+            raise(ValueError, f"parameter 'stat' must be in {valid_stats}")
+            
+        poly_df = gpd.GeoDataFrame({'geometry':[poly]}, crs=CRS.from_epsg(4326))
+        
+        # reproject the polygon to raster CRS
+        ds = rxr.open_rasterio(self.item_href[0])
+        raster_crs = CRS.from_wkt(ds.spatial_ref.crs_wkt)
+        poly_df_utm = poly_df.to_crs(raster_crs)
+        
+        sample_func = partial(self._extract_area_val_window, poly=poly_df, stat=stat, clip_dict=clip_dict)
+
+        with mp.get_context("spawn").Pool(nproc) as pool:
+            print(f'using {nproc} processes to sample {len(self.item_href)} assets')
+            vals = pool.map(sample_func, self.item_href)
+            
+        return list(vals)
             
 
                                
