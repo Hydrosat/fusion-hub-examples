@@ -45,6 +45,7 @@ qa_dict = {
     'Fused t1': {'position': 8, 'value': 1}
 }
 
+<<<<<<< HEAD
 
 def plot_lst_and_qa(hdst_item, mask_val=None, keep_val=None):
     
@@ -142,6 +143,8 @@ def plot_lst_and_qa(hdst_item, mask_val=None, keep_val=None):
     return
 
 
+=======
+>>>>>>> main
 def unpack_qa_value(qa_val=0):
 
     bit_desc_full = []
