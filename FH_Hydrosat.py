@@ -45,7 +45,6 @@ qa_dict = {
     'Fused t1': {'position': 8, 'value': 1}
 }
 
-
 def plot_lst_and_qa(hdst_item, mask_val=None, keep_val=None):
     
     mask_href = hdst_item.to_dict()['assets']['combined_qa']['href']
