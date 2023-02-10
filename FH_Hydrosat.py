@@ -45,6 +45,103 @@ qa_dict = {
     'Fused t1': {'position': 8, 'value': 1}
 }
 
+
+def plot_lst_and_qa(hdst_item, mask_val=None, keep_val=None):
+    
+    mask_href = hdst_item.to_dict()['assets']['combined_qa']['href']
+    with rio.open(mask_href) as src:
+        qa = src.read(1)
+
+    lst_href = hdst_item.to_dict()['assets']['lst']['href']
+    with rio.open(lst_href) as src:
+        lst = src.read(1)
+     
+    ## apply masking or keeping of values
+    # if a mask_val was provided, use it to set those pixels to np.nan so they won't be used 
+    # for analysis or visualizaton. This can be done by numpy's `where` function, which operates as
+    # np.where(condition, value_if_true, value_if_false)
+    # if there are multiple values in a list to mask, we will mask each one sequentially.
+    if mask_val is not None:
+        
+        # if a list of mask values was provided, sequentially set the lst data where the QA data 
+        # matches those values to np.nan
+        if type(mask_val) == list:
+            for mv in mask_val:
+                lst = np.where(qa == mask_val, np.nan, lst)
+        elif type(mask_val) == float:
+            
+            # if only one value supplied to mask, us np.where() to set the lst data
+            # to np.nan where that condition is true
+            lst = np.where(qa == mask_val, np.nan, lst)
+        else:
+            raise ValueError("mask_val must be either float or list of floats")
+    
+    # if a keep_val was provided, use it to set pixels not equal to those values to np.nan so 
+    # they won't be used for analysis or visualizaton. This can be done with boolean logic and indexing
+    # directly into the array. if there are multiple values, we will sequentially OR the mask as more values
+    # are used.
+    if keep_val is not None:
+        if type(keep_val) == list:
+            
+            # if it's a list, there should be multiple values. iterate through them.
+            for i,kv in enumerate(keep_val):
+                # build keep mask
+                if i == 0:
+                    keep_mask = qa == kv
+                else:
+                    keep_mask = keep_mask | (qa == kv)
+            
+            # take the complement of the keep_mask to retain only lst data where the QA values match
+            # the provided list.
+            lst[~keep_mask] = np.nan
+                
+        elif type(keep_val) == float:
+            
+            # if only one value provided to keep, set the lst data not equal to that value to np.nan
+            lst[qa != keep_val] = np.nan
+        else:
+            raise ValueError("keep_val must be either float or list of floats")
+        
+
+    ## display the data side-by-side
+    fig, ax = plt.subplots(1,2, figsize=(10,5))
+    im = ax[0].imshow(lst, cmap='inferno')
+    ax[0].set_title('HDST')
+    divider = make_axes_locatable(ax[0])
+    cax = divider.append_axes('right', size='5%', pad=0.05)
+    fig.colorbar(im, cax=cax, orientation='vertical')
+
+    #### make a unique value colormap for the QA data
+    cmap = plt.cm.cividis  # define the colormap
+    # extract all colors from the cmap
+    cmaplist = [cmap(i) for i in range(cmap.N)]
+
+    # create the new map
+    cmap = mpl.colors.LinearSegmentedColormap.from_list(
+        'Custom cmap', cmaplist, cmap.N)
+
+    # define the bins and normalize
+    num_vals = int(np.unique(qa).shape[0])
+    bounds = np.linspace(0, num_vals, num_vals)
+    norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
+
+
+    im = ax[1].imshow(qa, cmap=cmap, norm=norm)
+    ax[1].set_title('COMBINED_QA')
+    divider = make_axes_locatable(ax[1])
+    cax = divider.append_axes('right', size='5%', pad=0.05)
+    cbar = mpl.colorbar.ColorbarBase(cax, cmap=cmap, norm=norm, spacing='proportional', 
+                              ticks=bounds+0.5, boundaries=bounds, format='%1i')
+
+    cbar.ax.set_yticklabels(np.unique(qa))
+
+    [a.axis('off') for a in ax]
+
+    plt.show()
+    
+    return
+
+
 def unpack_qa_value(qa_val=0):
 
     bit_desc_full = []
