@@ -435,7 +435,7 @@ class FH_Hydrosat(object):
         return stac.load(self.items, bands=bands, cache=cache)
     
         
-    def _extract_point_val(self, href, set_x=None, set_y=None, tol=20):
+    def _extract_point_val(self, href, set_x=None, set_y=None, tol=20, band=0):
         """ construct a pandas DataFrame which is a time series for a single pixel across the search result.
             pt: shapely.geometry.Point
             tol: float. specified to retrieve nearest pixel
@@ -444,14 +444,14 @@ class FH_Hydrosat(object):
         try:
             # open the raster dataset to sample
             ds = rxr.open_rasterio(href, chunks=2048, cache=False)
-            val = ds.isel(band=0).sel(x=set_x, y=set_y, method='nearest', tolerance=tol).values
+            val = ds.isel(band=band).sel(x=set_x, y=set_y, method='nearest', tolerance=tol).values
         except Exception as e:
             val = np.nan
         
         return val
             
     
-    def _extract_point_val_window(self, href, set_x=None, set_y=None, tol=20, pad=1):
+    def _extract_point_val_window(self, href, set_x=None, set_y=None, tol=20, pad=1, band=0):
         """ construct a pandas DataFrame which is a time series for a single pixel across the search result. The value
             is computer from the area mean from +/- `pad` value around the center pixel.
             
@@ -464,7 +464,7 @@ class FH_Hydrosat(object):
             ds = rxr.open_rasterio(href, chunks=2048, cache=False)
             xslice = slice(set_x-pad*tol, set_x+pad*tol)
             yslice = slice(set_y+pad*tol, set_y-pad*tol)
-            val = np.nanmean(ds.isel(band=0).sel(x=xslice, y=yslice).mean(dim=('x', 'y')).values)
+            val = np.nanmean(ds.isel(band=band).sel(x=xslice, y=yslice).mean(dim=('x', 'y')).values)
 
         except Exception as e:
             val = np.nan
@@ -501,7 +501,7 @@ class FH_Hydrosat(object):
         
     
     
-    def point_time_series_from_items(self, pt, tol=20, nproc=2, pad=None):
+    def point_time_series_from_items(self, pt, tol=20, nproc=2, pad=None, band=0):
         """ construct a pandas DataFrame which is a time series for a single pixel across the search result."""
         
         # check pt param type
@@ -519,11 +519,11 @@ class FH_Hydrosat(object):
         # return a time series using multiprocessing and helper function
         # call multiprocess with functools.partial
         if pad is None:
-            sample_func = partial(self._extract_point_val, set_x=set_x, set_y=set_y, tol=tol)
+            sample_func = partial(self._extract_point_val, set_x=set_x, set_y=set_y, tol=tol, band=band)
         else:
             if type(pad) is not int:
                 raise TypeError("parameter pad should be of type int")
-            sample_func = partial(self._extract_point_val_window, set_x=set_x, set_y=set_y, tol=tol, pad=pad)
+            sample_func = partial(self._extract_point_val_window, set_x=set_x, set_y=set_y, tol=tol, pad=pad, band=band)
 
         with mp.get_context("spawn").Pool(nproc) as pool:
             print(f'using {nproc} processes to sample {len(self.item_href)} assets')
