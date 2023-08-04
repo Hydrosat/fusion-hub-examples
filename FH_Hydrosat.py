@@ -559,4 +559,69 @@ class FH_Hydrosat(object):
             
         return list(vals)
 
+    def _extract_vi_area_val(self, href, poly_df, stat='mean', clip_dict={'all_touched':True, 'drop':True}, vi='ndvi', sensor='s2'):
+        """ construct a pandas DataFrame which is a veg index time series for pixels in the geometry across the search result."""
+        try:
+            # open the raster dataset to sample
+            ds = rxr.open_rasterio(href, chunks=2048, cache=False)
+            clipped_ds = ds.rio.clip(poly_df.geometry, **clip_dict)
+            
+            if sensor == 's2':
+                if vi == 'ndvi':
+                    
+                    red = clipped_ds.isel(band=2)
+                    nir = clipped_ds.isel(band=6)
+                    vi_ds = (nir-red) / (nir+red)
+            
+            if stat=='mean':
+                val = np.nanmean(vi_ds.values)
+            elif stat=='max':
+                val = np.nanmax(vi_ds.values)
+            elif stat=='min':
+                val = np.nanmin(vi_ds.values)
+            elif stat=='std':
+                val = np.nanstd(vi_ds.values)
+            elif stat=='var':
+                val = np.nanvar(vi_ds.values)
+            elif stat=='median':
+                val = np.nanmedian(vi_ds.values)
+            else:
+                val = np.nan
+
+        except Exception as e:
+            val = (e, np.nan)
+
+        return val
     
+    def area_veg_index_time_series_from_items(self, poly_df, nproc=2, stat='mean', clip_dict={'all_touched':True, 'drop':True}, vi='ndvi', sensor='s2'):
+    
+        # check param type for gdf and that it is the same CRS as the items
+        #if type(poly) is not Polygon:
+            #raise(TypeError, "input pt must be of type shapely.geometry.Polygon")
+            
+        valid_stats = ('mean', 'std', 'var', 'median', 'min', 'max')
+        if stat not in valid_stats:
+            raise(ValueError, f"parameter 'stat' must be in {valid_stats}")
+            
+        valid_vi = ('ndvi')
+        if vi not in valid_vi:
+            raise(NotImplementedError, f"parameter 'vi' must be in {valid_vi}")
+            
+        valid_sensor = ('s2')
+        if sensor not in valid_sensor:
+            raise(NotImplementedError, f"parameter 'sensor' must be in {valid_sensor}")
+            
+        #poly_df = gpd.GeoDataFrame({'geometry':[poly]}, crs=CRS.from_epsg(4326))
+        
+        # reproject the polygon to raster CRS
+        #ds = rxr.open_rasterio(self.item_href[0])
+        #raster_crs = CRS.from_wkt(ds.spatial_ref.crs_wkt)
+        #poly_df_utm = poly_df.to_crs(raster_crs)
+        
+        sample_func = partial(self._extract_vi_area_val, poly_df=poly_df, stat=stat, clip_dict=clip_dict, vi=vi, sensor=sensor)
+
+        with mp.get_context("spawn").Pool(nproc) as pool:
+            print(f'using {nproc} processes to sample {len(self.item_href)} assets')
+            vals = pool.map(sample_func, self.item_href)
+            
+        return list(vals)
