@@ -472,12 +472,12 @@ class FH_Hydrosat(object):
         return val
     
     # TODO
-    def _extract_area_val(self, href, clip_df=None, stat='mean', clip_dict={'all_touched':True, 'drop':True}):
+    def _extract_area_val(self, href, poly_df, stat='mean', clip_dict={'all_touched':True, 'drop':True}, band=0):
         """ construct a pandas DataFrame which is a time series for pixels in the geometry across the search result."""
         try:
             # open the raster dataset to sample
-            ds = rxr.open_rasterio(href, chunks=2048, cache=False)
-            clipped_ds = ds.rio.clip(clip_df.geometry, **clip_dict)
+            ds = rxr.open_rasterio(href, chunks=2048, cache=False).isel(band=band)
+            clipped_ds = ds.rio.clip(poly_df.geometry, **clip_dict)
             
             if stat=='mean':
                 val = np.nanmean(clipped_ds.values)
@@ -495,8 +495,7 @@ class FH_Hydrosat(object):
                 val = np.nan
 
         except Exception as e:
-            #print(e)
-            val = np.nan
+            val = (e, np.nan)
 
         return val
         
@@ -534,35 +533,30 @@ class FH_Hydrosat(object):
             
             
     # TODO
-    def area_time_series_from_items(self, poly, nproc=2, stat='mean', clip_dict={'crs':None, 'all_touched':True, 'drop':True}):
-        """ construct a pandas DataFrame which is a time series for a single pixel across the search result.
-        Input polygon must be in CRS 4326."""
+    def area_time_series_from_items(self, poly_df, nproc=2, stat='mean', clip_dict={'all_touched':True, 'drop':True}, band=0):
+        """ construct a pandas DataFrame which is a time series for a single pixel across the search result."""
         
-        # check pt param type
-        if type(poly) is not Polygon:
-            raise(TypeError, "input pt must be of type shapely.geometry.Polygon")
+        # check param type for gdf and that it is the same CRS as the items
+        #if type(poly) is not Polygon:
+            #raise(TypeError, "input pt must be of type shapely.geometry.Polygon")
             
         valid_stats = ('mean', 'std', 'var', 'median', 'min', 'max')
         if stat not in valid_stats:
             raise(ValueError, f"parameter 'stat' must be in {valid_stats}")
             
-        poly_df = gpd.GeoDataFrame({'geometry':[poly]}, crs=CRS.from_epsg(4326))
+        #poly_df = gpd.GeoDataFrame({'geometry':[poly]}, crs=CRS.from_epsg(4326))
         
         # reproject the polygon to raster CRS
-        ds = rxr.open_rasterio(self.item_href[0])
-        raster_crs = CRS.from_wkt(ds.spatial_ref.crs_wkt)
-        poly_df_utm = poly_df.to_crs(raster_crs)
-        #print("poly_df_utm crs", poly_df_utm.crs)
-                
-        sample_func = partial(self._extract_area_val, clip_df=poly_df_utm, stat=stat, clip_dict=clip_dict)
+        #ds = rxr.open_rasterio(self.item_href[0])
+        #raster_crs = CRS.from_wkt(ds.spatial_ref.crs_wkt)
+        #poly_df_utm = poly_df.to_crs(raster_crs)
+        
+        sample_func = partial(self._extract_area_val, poly_df=poly_df, stat=stat, clip_dict=clip_dict, band=band)
 
         with mp.get_context("spawn").Pool(nproc) as pool:
             print(f'using {nproc} processes to sample {len(self.item_href)} assets')
             vals = pool.map(sample_func, self.item_href)
             
         return list(vals)
-            
 
-                               
-                               
     
