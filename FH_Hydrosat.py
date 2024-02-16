@@ -309,6 +309,9 @@ class FH_Hydrosat(object):
     def download_single_asset(self, idx, local_folder=None):
         ''' this function downloads a single asset referenced by index'''
         
+        if (local_folder is not None) and (not os.path.exists(local_folder)):
+            os.makedirs(local_folder)
+            
         dl_asset = self.item_href[idx]
         dl_url = self.item_desc[idx]
         
